@@ -122,7 +122,10 @@ jobs:
         if: ${{ contains(fromJSON('["riscv64", "loongarch64"]'), matrix.arch) && matrix.os == 'linux' }}
         run: |
           rustup target add --toolchain nightly-2026-08-19 "${{ matrix.target }}"
-          cargo +nightly-2026-08-19 zigbuild --release --bin terracotta --target "${{ matrix.target }}.${{ matrix.glibc-version }}"
+          target="${{ matrix.target }}"
+          glibc="${{ matrix.glibc-version }}"
+          if [ -n "$glibc" ]; then target="$target.$glibc"; fi
+          cargo +nightly-2026-08-19 zigbuild --release --bin terracotta --target "$target"
       - name: Build (freebsd x86_64)
         if: ${{ contains(fromJSON('["x86_64"]'), matrix.arch) && matrix.os == 'freebsd' }}
         uses: cross-platform-actions/action@v1.0.0
