@@ -1,5 +1,21 @@
 # Terracotta para BattlyWorlds
 
+## Release multiplataforma
+
+La release [v0.4.2-battly.3](https://github.com/BattlyLauncher/Terracotta/releases/tag/v0.4.2-battly.3) contiene el parche de Battly compilado para 13 destinos:
+
+- Windows: x86_64 y ARM64.
+- Linux: x86_64, ARM64, RISC-V64 y LoongArch64.
+- macOS: Intel x86_64 y Apple Silicon ARM64.
+- FreeBSD: x86_64.
+- Android: arm64-v8a, armeabi-v7a, x86 y x86_64 (bibliotecas JNI `.so`).
+
+`SHA256SUMS` y `manifest-multiplatform.json` contienen los hashes y tamaños. El manifiesto identifica el commit de fuentes `c9fd2781f56d27a1b93770f86ad32a2c91f165a7`. Las 13 compilaciones y el empaquetado pasaron en [GitHub Actions](https://github.com/BattlyLauncher/Terracotta/actions/runs/38139729184), y los hashes publicados se comprobaron contra los digests de los assets de GitHub. La compilación no sustituye pruebas de multijugador en dispositivos físicos de cada plataforma.
+
+La automatización está en `.github/workflows/battly-release.yaml`; conserva la API JNI original de Android y el código parcheado compartido. Los lanzadores que fijen una release anterior no se actualizan automáticamente al publicar estos archivos.
+
+## Distribuciones anteriores
+
 Terracotta, copyright burningtnt, se distribuye bajo AGPL-3.0; véase `LICENSE`.
 La distribución Windows es `0.4.2-battly.2`; Linux conserva `0.4.2-battly.1`, basada en el commit
 `74364326038f9a33306777a56ed9bb6664799a1d` de
