@@ -58,3 +58,7 @@ para este binario se registra en `manifest.json`.
 En Linux: instalar Rust nightly-2026-08-18, el target
 `x86_64-unknown-linux-musl`, musl-tools y unzip; ejecutar
 `sh scripts/build-terracotta-linux.sh`. Conserva las mismas fuentes y licencia.
+
+## Firma de Windows
+
+Las siguientes releases firmarán los ejecutables x64 y ARM64 antes de generar los paquetes y hashes. Consulta [la configuración de firma](docs/windows-signing.md).

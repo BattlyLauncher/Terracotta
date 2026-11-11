@@ -2,6 +2,15 @@ name: Battly multiplatform release
 
 on:
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Build and verify without publishing
+        type: boolean
+        default: true
+      windows_only:
+        description: Build and sign Windows only, without publishing
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -59,9 +68,57 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ env.ARTIFACT }}
+          name: unsigned-${{ env.ARTIFACT }}
           path: ${{ env.ARTIFACT }}
+  sign-windows:
+    if: github.ref == 'refs/heads/main'
+    needs: build-windows
+    runs-on: windows-2022
+    environment: windows-signing
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Authenticate signing identity
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        env:
+          AZURE_CORE_OUTPUT: none
+      - name: Download unsigned Windows executables
+        uses: actions/download-artifact@v8
+        with:
+          pattern: unsigned-terracotta-*
+          path: windows
+          merge-multiple: true
+      - name: Sign both Windows architectures
+        shell: pwsh
+        run: |
+          ./scripts/sign-windows.ps1 -Files @("windows/terracotta-$env:TERRACOTTA_VERSION-windows-x86_64.exe", "windows/terracotta-$env:TERRACOTTA_VERSION-windows-arm64.exe") -Machines @(0x8664, 0xaa64)
+        env:
+          SIGNING_ENDPOINT: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+          SIGNING_ACCOUNT_NAME: ${{ secrets.AZURE_SIGNING_ACCOUNT_NAME }}
+          SIGNING_CERTIFICATE_PROFILE: ${{ secrets.AZURE_SIGNING_CERTIFICATE_PROFILE }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: terracotta-${{ env.TERRACOTTA_VERSION }}-windows-x86_64.exe
+          path: windows/terracotta-${{ env.TERRACOTTA_VERSION }}-windows-x86_64.exe
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        with:
+          name: terracotta-${{ env.TERRACOTTA_VERSION }}-windows-arm64.exe
+          path: windows/terracotta-${{ env.TERRACOTTA_VERSION }}-windows-arm64.exe
+          if-no-files-found: error
   build-unix:
+    if: ${{ !inputs.windows_only }}
     strategy:
       fail-fast: false
       matrix:
@@ -168,6 +225,17 @@ jobs:
           chmod 755 "$source"
           tar -czf "$source.tar.gz" "$source"
           echo "ARTIFACT=$source.tar.gz" >> "$GITHUB_ENV"
+      - name: Publish immutable version
+        if: vars.BATTLY_COMPONENT_RELEASE_PUBLISH_ENABLED == 'true' && !inputs.dry_run && github.ref == 'refs/heads/main'
+        run: python3 scripts/publish.py
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Upload release bundles
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-bundles
+          path: bundle/*
+          if-no-files-found: error
       - name: Upload Artifact
         uses: actions/upload-artifact@v7
         with:
@@ -175,6 +243,7 @@ jobs:
           path: ${{ env.ARTIFACT }}
           
   build-macos:
+    if: ${{ !inputs.windows_only }}
     strategy:
       fail-fast: false
       matrix:
@@ -251,7 +320,7 @@ jobs:
     runs-on: ubuntu-latest
     name: Assemble Artifact
     needs:
-      - build-windows
+      - sign-windows
       - build-unix
       - build-macos
     steps:
@@ -261,6 +330,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           path: artifacts
+          pattern: terracotta-*
       - name: Assemble Artifacts
         run: |
           shopt -s nullglob
@@ -313,10 +383,18 @@ jobs:
           assert len(assets) == 13, f'Expected all 13 targets, got {len(assets)}'
           (root / 'manifest-multiplatform.json').write_text(json.dumps({'version': os.environ['TERRACOTTA_VERSION'], 'sourceCommit': os.environ['GITHUB_SHA'], 'rust': 'nightly-2026-08-19', 'assets': assets}, indent=2)+'\n')
           PYMANIFEST
-            gh release create "v${TERRACOTTA_VERSION}" --target "$GITHUB_SHA" --title "Terracotta ${TERRACOTTA_VERSION} · Battly multiplatform" --notes-file release-notes.md bundle/*
           fi
+      - name: Publish immutable version
+        if: vars.BATTLY_COMPONENT_RELEASE_PUBLISH_ENABLED == 'true' && !inputs.dry_run && github.ref == 'refs/heads/main'
+        run: python3 scripts/publish.py
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+      - name: Upload release bundles
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-bundles
+          path: bundle/*
+          if-no-files-found: error
       - name: Upload Artifact
         uses: actions/upload-artifact@v7
         with:
